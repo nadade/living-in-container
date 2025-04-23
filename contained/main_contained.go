@@ -21,7 +21,7 @@ func main() {
 }
 
 func host() {
-	fmt.Printf("Running %v\n", os.Args[2:])
+	fmt.Printf("[host] Running %v\n", os.Args[2:])
 
 	cmd := exec.Command("/proc/self/exe", append([]string{"container"}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
@@ -50,7 +50,7 @@ func host() {
 }
 
 func container() {
-	fmt.Printf("Running %v in a container\n", os.Args[2:])
+	fmt.Printf("[container] Running %v\n", os.Args[2:])
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
