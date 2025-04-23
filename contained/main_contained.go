@@ -40,11 +40,11 @@ func host() {
 	my_cg_path := filepath.Join(cg_path, "container_gophercamp")
 	must(os.MkdirAll(my_cg_path, 0755))
 
-	//limit max amount of processes to 20
-	must(os.WriteFile(filepath.Join(my_cg_path, "pids.max"), []byte("20"), 0700))
-
 	//add this process to the new cgroup
 	must(os.WriteFile(filepath.Join(my_cg_path, "cgroup.procs"), []byte(strconv.Itoa(os.Getpid())), 0700))
+
+	//limit max amount of processes to 20
+	must(os.WriteFile(filepath.Join(my_cg_path, "pids.max"), []byte("20"), 0700))
 
 	must(cmd.Run())
 }
@@ -61,16 +61,27 @@ func container() {
 	must(syscall.Sethostname([]byte("container")))
 
 	//change root to the new file system (downloaded and untared in the vagrant provisioning shell)
-	must(syscall.Chroot("/home/vagrant/ubuntufs"))
+	new_root := "/home/vagrant/ubuntufs"
+	old_root := ".old_root"
+	old_root_path := filepath.Join(new_root, old_root)
 
-	//after chroot, we need to explicitly change directory to /
-	must(syscall.Chdir("/"))
+	//trickery - new root and old root must not be on the same file system
+	must(syscall.Mount(new_root, new_root, "bind", syscall.MS_BIND|syscall.MS_REC, ""))
+	must(os.MkdirAll(old_root_path, 0755))
+	must(syscall.PivotRoot(new_root, old_root_path))
+
+	//after changing root, we need to explicitly change directory to /
+	must(os.Chdir("/"))
 
 	//mount the procfs, otherwise /proc is empty
-	must(syscall.Mount("proc", "proc", "proc", 0, ""))
-	must(cmd.Run())
+	must(syscall.Mount("proc", "/proc", "proc", 0, ""))
 
-	must(syscall.Unmount("proc", 0))
+	//now we can get rid of the old root mount and empty dir
+	old_root_path = filepath.Join("/", old_root)
+	must(syscall.Unmount(old_root_path, syscall.MNT_DETACH))
+	must(os.Remove(old_root_path))
+
+	must(cmd.Run())
 }
 
 func must(err error) {
